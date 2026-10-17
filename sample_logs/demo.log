@@ -1,0 +1,8 @@
+2026-10-17 10:00:01 INFO Application started
+2026-10-17 10:00:10 DEBUG Loading configuration
+2026-10-17 10:01:12 WARNING Storage almost full
+2026-10-17 10:02:30 ERROR Database connection failed
+2026-10-17 10:02:45 ERROR Database connection failed
+2026-10-17 10:03:00 INFO User logged in
+2026-10-17 10:04:10 CRITICAL Server unavailable
+2026-10-17 10:05:00 WARNING Response time is high

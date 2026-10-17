@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Smart-CAE Log Analytics Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 25px;
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            color: #38bdf8;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #94a3b8;
+        }
+
+        .upload-box {
+            background: #1e293b;
+            padding: 22px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        input, select, button {
+            padding: 11px;
+            border-radius: 6px;
+            border: none;
+            margin: 5px;
+        }
+
+        input, select {
+            background: #334155;
+            color: white;
+        }
+
+        button {
+            background: #0284c7;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0369a1;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 22px;
+            border-radius: 12px;
+            border-left: 5px solid #38bdf8;
+        }
+
+        .card h3 {
+            font-size: 15px;
+            color: #cbd5e1;
+        }
+
+        .card p {
+            font-size: 30px;
+            font-weight: bold;
+            margin: 10px 0 0;
+        }
+
+        .error {
+            color: #f87171;
+        }
+
+        .section {
+            background: #1e293b;
+            padding: 22px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            color: #38bdf8;
+        }
+
+        .level-ERROR,
+        .level-CRITICAL {
+            color: #f87171;
+            font-weight: bold;
+        }
+
+        .level-WARNING {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+
+        .level-INFO {
+            color: #4ade80;
+        }
+
+        .level-DEBUG {
+            color: #c084fc;
+        }
+
+        .level-UNKNOWN {
+            color: #94a3b8;
+        }
+
+        .chart-container {
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        footer {
+            text-align: center;
+            color: #94a3b8;
+            padding: 20px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .section, .upload-box {
+                padding: 15px;
+            }
+
+            input[type="file"] {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Smart-CAE Dashboard</h1>
+    <p>Smart Log Analytics and Visualization System</p>
+</header>
+
+<div class="upload-box">
+    <h2>Upload Log File</h2>
+
+    <form method="POST" enctype="multipart/form-data">
+        <input
+            type="file"
+            name="logfile"
+            accept=".log,.txt"
+            required
+        >
+
+        <button type="submit">Upload and Analyze</button>
+    </form>
+
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+</div>
+
+{% if results %}
+
+<div class="cards">
+
+    <div class="card">
+        <h3>Total Log Entries</h3>
+        <p>{{ results.total }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Total Errors</h3>
+        <p>{{ results.errors }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Total Warnings</h3>
+        <p>{{ results.warnings }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Information Messages</h3>
+        <p>{{ results.info }}</p>
+    </div>
+
+</div>
+
+<div class="section">
+    <h2>Log Level Distribution</h2>
+
+    <div class="chart-container">
+        <canvas id="logChart"></canvas>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Repeated Errors</h2>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Error Message</th>
+                    <th>Occurrences</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for item in results.repeated_errors %}
+                <tr>
+                    <td>{{ item.message }}</td>
+                    <td>{{ item.count }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2">No errors found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="section">
+    <h2>Log Entries</h2>
+
+    <div class="filters">
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="Search log messages..."
+            aria-label="Search log messages"
+        >
+
+        <select id="levelFilter" aria-label="Filter by log level">
+            <option value="ALL">All Log Levels</option>
+            <option value="ERROR">ERROR</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="WARNING">WARNING</option>
+            <option value="INFO">INFO</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="UNKNOWN">UNKNOWN</option>
+        </select>
+
+        <button type="button" id="resetButton">
+            Reset Filters
+        </button>
+    </div>
+
+    <div class="table-container">
+        <table id="logsTable">
+            <thead>
+                <tr>
+                    <th>Log Level</th>
+                    <th>Message</th>
+                    <th>Original Log</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for log in results.logs %}
+                <tr class="log-row" data-level="{{ log.level }}">
+                    <td class="level-{{ log.level }}">{{ log.level }}</td>
+                    <td>{{ log.message }}</td>
+                    <td>{{ log.original }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No log entries found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p id="noResults" class="error hidden">
+        No matching log entries found.
+    </p>
+
+    <button type="button" id="downloadButton">
+        Download Report
+    </button>
+</div>
+
+<script>
+    // 1. Create the log distribution chart.
+
+    const logData = {
+        labels: [
+            "Errors",
+            "Warnings",
+            "Information",
+            "Debug",
+            "Unknown"
+        ],
+        values: [
+            {{ results.errors | tojson }},
+            {{ results.warnings | tojson }},
+            {{ results.info | tojson }},
+            {{ results.debug | tojson }},
+            {{ results.unknown | tojson }}
+        ]
+    };
+
+    const chartCanvas = document.getElementById("logChart");
+
+    if (chartCanvas && typeof Chart !== "undefined") {
+        new Chart(chartCanvas, {
+            type: "doughnut",
+            data: {
+                labels: logData.labels,
+                datasets: [{
+                    data: logData.values,
+                    backgroundColor: [
+                        "#ef4444",
+                        "#f59e0b",
+                        "#22c55e",
+                        "#a78bfa",
+                        "#64748b"
+                    ],
+                    borderWidth: 2,
+                    borderColor: "#1e293b"
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "#f8fafc"
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 2. Search and filter log entries.
+
+    const searchInput = document.getElementById("searchInput");
+    const levelFilter = document.getElementById("levelFilter");
+    const logRows = document.querySelectorAll(".log-row");
+    const noResults = document.getElementById("noResults");
+    const resetButton = document.getElementById("resetButton");
+
+    function filterLogs() {
+        const searchText = searchInput.value.toLowerCase().trim();
+        const selectedLevel = levelFilter.value;
+        let visibleCount = 0;
+
+        logRows.forEach(function(row) {
+            const text = row.textContent.toLowerCase();
+            const level = row.dataset.level;
+
+            const matchesSearch = text.includes(searchText);
+            const matchesLevel =
+                selectedLevel === "ALL" || level === selectedLevel;
+
+            if (matchesSearch && matchesLevel) {
+                row.classList.remove("hidden");
+                visibleCount++;
+            } else {
+                row.classList.add("hidden");
+            }
+        });
+
+        noResults.classList.toggle("hidden", visibleCount > 0);
+    }
+
+    searchInput.addEventListener("input", filterLogs);
+    levelFilter.addEventListener("change", filterLogs);
+
+    resetButton.addEventListener("click", function() {
+        searchInput.value = "";
+        levelFilter.value = "ALL";
+        filterLogs();
+    });
+
+    // 3. Download the analysis report.
+
+    function downloadReport() {
+        let report = "SMART-CAE LOG ANALYSIS REPORT\n";
+        report += "========================================\n\n";
+
+        report += "Total Entries: {{ results.total }}\n";
+        report += "Total Errors: {{ results.errors }}\n";
+        report += "Total Warnings: {{ results.warnings }}\n";
+        report += "Information Messages: {{ results.info }}\n";
+        report += "Debug Messages: {{ results.debug }}\n";
+        report += "Unknown Messages: {{ results.unknown }}\n\n";
+
+        report += "REPEATED ERRORS\n";
+        report += "========================================\n";
+
+        {% for item in results.repeated_errors %}
+        report += {{ ("Error: " ~ item.message ~ " | Occurrences: " ~ item.count ~ "\n") | tojson }};
+        {% else %}
+        report += "No repeated errors found.\n";
+        {% endfor %}
+
+        report += "\nLOG ENTRIES\n";
+        report += "========================================\n\n";
+
+        // Include every log entry, even if search/filter is active.
+        const rows = document.querySelectorAll(
+            "#logsTable tbody tr.log-row"
+        );
+
+        rows.forEach(function(row) {
+            const cells = row.querySelectorAll("td");
+
+            if (cells.length === 3) {
+                const level = cells[0].textContent.trim();
+                const message = cells[1].textContent.trim();
+                const original = cells[2].textContent.trim();
+
+                report += "Level: " + level + "\n";
+                report += "Message: " + message + "\n";
+                report += "Original Log: " + original + "\n";
+                report += "----------------------------------------\n";
+            }
+        });
+
+        const blob = new Blob([report], {
+            type: "text/plain;charset=utf-8"
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = "Smart-CAE-Analysis-Report.txt";
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(function() {
+            URL.revokeObjectURL(url);
+        }, 1000);
+    }
+
+    document.getElementById("downloadButton").addEventListener(
+        "click",
+        downloadReport
+    );
+</script>
+
+{% endif %}
+
+<footer>
+    Smart-CAE Log Analytics Dashboard | Academic Project
+</footer>
+
+</body>
+</html>
